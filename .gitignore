@@ -1,0 +1,6 @@
+scripts/cluster.env
+*.tar
+__pycache__/
+.DS_Store
+*.pyc
+.env
