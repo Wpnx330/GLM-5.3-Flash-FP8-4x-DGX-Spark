@@ -1,4 +1,4 @@
-# GLM-5.3-Flash FP8 on 4× DGX Spark
+# GLM-5.3-Flash FP8 1m context on 4× DGX Spark - 30-40 tok/s
 
 Native FP8, uncensored, multimodal, tensor-parallel 4.
 
