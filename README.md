@@ -1,6 +1,6 @@
-# GLM-5.3-Flash-uncensored FP8 on 4× DGX Spark - 30-40 tok/s @ 1m context
+# GLM-5.3-Flash-uncensored FP8 | 4× DGX Spark | 34 tok/s @ 1m cxt
 
-Native FP8, uncensored, multimodal, tensor-parallel 4.
+Native FP8, uncensored, multimodal, tensor-parallel 4, 1m context at 28-34 tok/s.
 
 Single-stream decode **28–34 tok/s** on a tiny prompt and **~43 tok/s** after a ~50k-token prefill. Prefill on that 50k prompt is **~2,100 tok/s**. Short-chat speed does not change when you pick the 200k, 500k, or 1M lane. Image and video towers load and answer.
 
