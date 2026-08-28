@@ -69,7 +69,18 @@ Default gmu stays 0.85 so a box that still has a desktop session does not OOM ra
 
 1. SM121 NoPE image (required to boot)
 2. 5 × 500K occupancy (daily)
-3. MTP k=3 (Tony's TP4 used k=4; position 4 was free-riding)
+3. MTP **k=3** — measured. The k=3/k=4 A/B (full battery, 2026-08-28) showed k=4's 4th
+   draft token rejects: vLLM per-position acceptance `0.88/0.80/0.74/0.49` — position 4
+   costs more than it earns (−46% decode on reasoning c=1, −24% mean c1–5). Tony's TP4
+   runs k=4 under `--enforce-eager`, a different regime.
+3b. **DFlash2 — next roadmap item, not yet wired.** Inco's block-diffusion drafter
+   (`incoai/GLM-5.3-Flash-DFlash2`, ~800 MB) drafted for exactly this model: +3–27%
+   acceptance over MTP at k=7-block (GSM8K 5.78 vs 5.06, HumanEval 5.32 vs 4.70),
+   ≈1.3–1.7× MTP throughput at c=1, decays with concurrency. Ships **SGLang-only**
+   (a bespoke PR, not vLLM speculative-cfg). Wire-up = move engines or port drafter;
+   above MTP-3 but a separate daily-driver decision.
+   → Not a "faster than us" datapoint: their 40–50+ tok/s is on **GB300/NCU TP4**
+   with TRT-LLM kernels, different hardware class than 4× Spark.
 4. `--max-num-batched-tokens 8192` (4096 is too small with MTP draft slots)
 5. Drop eager, add async-scheduling, bind-mount the SMEM patch
 

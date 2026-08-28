@@ -75,7 +75,8 @@ Full tables: [docs/BENCH.md](docs/BENCH.md). Harness: `scripts/bench_lanes.py`.
 4. **CUDA graphs.** Tony's 5.3 writeup stays on `--enforce-eager`. Dropping it here hit `persistent_topk` wanting 128 KB SMEM. GB10 has 101 KB. Bind-mounts in `patches/` skip that kernel on SM12x. Graphs then captured (PIECEWISE 8/8, FULL 3/3). `--async-scheduling` stays on.
 5. **FP8, not NVFP4.** NVFP4 on GB10 is Marlin dequant, usually slower decode. Same lesson as GLM-5.2.
 6. **No DCP.** 5.2 needed it. This card does not. `decode_context_parallel_size=1`.
-7. **MTP k=3**, batched tokens 8192, `--block-size 2304`.
+7. **MTP k=3** (k=4 A/B'd 2026-08-28: 4th draft acceptance ~0.5 → net slower), batched
+   8192, `--block-size 2304`. Next-up: Inco's **DFlash2** drafter (SGLang-only today).
 
 Longer version: [docs/DESIGN.md](docs/DESIGN.md).
 
