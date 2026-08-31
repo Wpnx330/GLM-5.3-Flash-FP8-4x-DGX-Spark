@@ -32,6 +32,13 @@ MAX_NUM_SEQS="${GLM53_SEQS:-$_SEQS}"
 MAX_BATCHED="${GLM53_BATCHED:-8192}"
 GMU="${GLM53_GMU:-0.85}"
 SERVED_NAME="${GLM53_SERVED_NAME:-glm-5.3-flash}"
+# MTP draft length. 3 is the measured default on 4x GB10; k=4 worth re-testing
+# on fixed-weights builds (older A/B ran on a revision later patched upstream).
+MTP_K="${GLM53_MTP_K:-3}"
+if ! [ "$MTP_K" -ge 1 ] 2>/dev/null; then
+  printf 'GLM53_MTP_K must be an integer >= 1 (got %s)\n' "$MTP_K" >&2
+  exit 2
+fi
 TP="${#NODES[@]}"
 
 say()  { printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
@@ -107,7 +114,7 @@ SERVE=(
   --served-model-name "$SERVED_NAME" --host 0.0.0.0 --port "$PORT"
   --trust-remote-code
   --reasoning-parser glm45 --tool-call-parser glm47 --enable-auto-tool-choice
-  --speculative-config '{"method":"mtp","num_speculative_tokens":3}'
+  --speculative-config "{\"method\":\"mtp\",\"num_speculative_tokens\":$MTP_K}"
   --tensor-parallel-size "$TP" --pipeline-parallel-size 1
   --max-model-len "$MAX_MODEL_LEN" --max-num-seqs "$MAX_NUM_SEQS"
   --max-num-batched-tokens "$MAX_BATCHED"

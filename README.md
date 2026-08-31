@@ -76,7 +76,9 @@ Full tables: [docs/BENCH.md](docs/BENCH.md). Harness: `scripts/bench_lanes.py`.
 5. **FP8, not NVFP4.** NVFP4 on GB10 is Marlin dequant, usually slower decode.
 6. **No DCP.** This card does not need it. `decode_context_parallel_size=1`.
 7. **MTP k=3** (k=4 A/B'd 2026-08-28: 4th draft acceptance ~0.5 → net slower), batched
-   8192, `--block-size 2304`. Next-up: Inco's **DFlash2** drafter (SGLang-only today).
+   8192, `--block-size 2304`. Draft length is a knob: `GLM53_MTP_K=4 ./scripts/glm53-serve.sh`.
+   That A/B ran on an older weights revision; re-testing k=4 on newer cards is fair game.
+   Next-up: Inco's **DFlash2** drafter (SGLang-only today).
 
 Longer version: [docs/DESIGN.md](docs/DESIGN.md).
 
