@@ -102,6 +102,10 @@ for ip in "${NODES[@]}"; do
   ssh_to "$ip" "docker run --rm --privileged -v /proc:/host_proc alpine sh -c 'sync && echo 3 > /host_proc/sys/vm/drop_caches' >/dev/null 2>&1 && echo '  $ip: cache dropped'" || echo "  $ip: skip"
 done
 
+# Single source of truth: whatever WEIGHTS resolved to here (cluster.env or
+# environment) is exactly what the node launcher mounts. No per-script copies.
+export GLM53_WEIGHTS="$WEIGHTS"
+
 "$LAUNCH"
 
 echo

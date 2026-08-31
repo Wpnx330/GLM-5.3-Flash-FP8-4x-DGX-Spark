@@ -34,6 +34,8 @@ require_cluster() {
   : "${SSH_USER:?set SSH_USER in cluster.env}"
   : "${HEAD_IP:?set HEAD_IP in cluster.env}"
   : "${WORKER_IPS:?set WORKER_IPS in cluster.env}"
+  # Any host path works; set WEIGHTS in cluster.env. Download the CURRENT
+  # revision of HF_REPO (see docs/SETUP.md step 3 for the revision check).
   : "${WEIGHTS:=/var/tmp/models/glm53-flash-fp8}"
   : "${CACHE:=/var/tmp/models/glm53-cache}"
   : "${IMAGE:=glm53-flash:sm121-v8}"

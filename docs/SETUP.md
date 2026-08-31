@@ -30,7 +30,7 @@ This FP8 card is ~78 GiB of weights **per rank**. Tensor parallel 4 is how it fi
 | `NCCL_IB_HCA` | InfiniBand devices, comma-separated. Dual-rail Spark default is in the example. Single-rail: one device. |
 | `NCCL_SOCKET_IFNAME` | Matching Ethernet/RoCE ifaces |
 | `GLOO_SOCKET_IFNAME` | One iface for Gloo (usually rail 1) |
-| `WEIGHTS` / `CACHE` | Host paths. Defaults under `/var/tmp/models/` are fine |
+| `WEIGHTS` / `CACHE` | Host paths. Defaults under `/var/tmp/models/` are fine. `WEIGHTS` is the single source of truth: serve.sh exports it and every node mounts exactly it. |
 | `IMAGE` | Local tag after `build-image.sh` (default `glm53-flash:sm121-v8`) |
 | `HF_REPO` | Weight card. Default is `dealignai/GLM-5.3-Flash-UNCENSORED-FP8` |
 | `HF_BASE_IMAGE` | `vllm/vllm-openai:glm53-flash-arm64-cu130` |
@@ -70,6 +70,17 @@ hf download dealignai/GLM-5.3-Flash-UNCENSORED-FP8 \
 # expect 62 shards, ~306 GiB
 ls "$WEIGHTS"/model-*-of-00062.safetensors | wc -l
 ```
+
+**Important — weights get updated upstream.** If you downloaded this card before, re-check the current revision; an older release had a repetition-loop bug later fixed in the weights. Two ways to confirm you have the current files:
+
+```bash
+# cheap: compare sizes against the card's file listing (Settings → Files)
+# exact: spot-check a shard hash after download
+sha256sum "$WEIGHTS"/model-00022-of-00062.safetensors
+# compare against the SHA-256 shown on the HF file page for that blob
+```
+
+If the card announces a fixed revision, either re-download the changed shards or the whole card into a fresh directory, then point `WEIGHTS` at it in `cluster.env`. The engine mounts whatever `WEIGHTS` says — one variable, every script follows.
 
 Then copy over the fabric:
 
@@ -114,7 +125,7 @@ GLM53_LANE=1m ./scripts/glm53-serve.sh
 | `500k` | 500,000 | 5 | Default. Compaction sweet spot. Agent sessions that hold a repo. |
 | `1m` | 1,000,000 | 3 | Long dumps. Engine print at gmu 0.85 is ~2.15× full 1M windows. Three jobs that are not all maxed is occupancy; three simultaneous 1M dumps will preempt and slow down. |
 
-Default `gpu-memory-utilization=0.85`. If you stripped the desktop (no GUI), `GLM53_GMU=0.885` is the squeeze we ran on GLM-5.2. That is not the published default. See README.
+Default `gpu-memory-utilization=0.85`. If you stripped the desktop (no GUI), `GLM53_GMU=0.885` is the squeeze. That is not the published default. See README.
 
 Clock check: a GB10 can sit at ~660 MHz and look idle. The serve script burns 5s per node. Override with `GLM_SKIP_CLOCK_CHECK=1` only if you just stopped a live engine (the burn hangs while the GPU is owned).
 
@@ -145,7 +156,7 @@ Image and video use OpenAI-style `image_url` / `video_url` with a data URL. The 
 
 ## Lanes vs real occupancy
 
-These seq counts are how we run it, not a promise that 15 full 200K windows fit in the 0.85 KV pool. They do not. Mixed occupancy (some chats at 4K, one at 80K) is what the numbers are for. If you dump 15×200K at once you get preemption and a crawl, not a clean 15-wide decode. Same story as GLM-5.2 at 5×200K.
+These seq counts are how we run it, not a promise that 15 full 200K windows fit in the 0.85 KV pool. They do not. Mixed occupancy (some chats at 4K, one at 80K) is what the numbers are for. If you dump 15×200K at once you get preemption and a crawl, not a clean 15-wide decode.
 
 ## Two Sparks
 
@@ -154,7 +165,7 @@ This recipe is TP=4 because native FP8 GLM-5.3-Flash is ~78 GiB/rank after load.
 If you only have two boxes:
 
 - Do **not** use these occupancy lanes as-is.
-- Tony's NVFP4 recipe on 2 Sparks is the working TP=2 path: [tonyd2wild/GLM-5.3-Flash-NVFP4-262K-2x-DGX-Spark](https://github.com/tonyd2wild/GLM-5.3-Flash-NVFP4-262K-2x-DGX-Spark) (Marlin, 262K). NVFP4 on GB10 is a dequant path, usually slower decode than FP8+DeepGEMM. We measured that on 5.2 as well.
+- Tony's NVFP4 recipe on 2 Sparks is the working TP=2 path: [tonyd2wild/GLM-5.3-Flash-NVFP4-262K-2x-DGX-Spark](https://github.com/tonyd2wild/GLM-5.3-Flash-NVFP4-262K-2x-DGX-Spark) (Marlin, 262K). NVFP4 on GB10 is a dequant path, usually slower decode than FP8+DeepGEMM.
 - If you still want this FP8 card on two nodes, you would set `WORKER_IPS` to one IP, accept TP=2 from `NNODES`, drop `max-model-len` hard (try 64K–128K, `max-num-seqs=1` or `2`, `gmu=0.80`), and expect OOM until you tune. We did not ship or bench that. No 2-Spark lane files in this repo.
 
 ## Troubleshooting

@@ -42,7 +42,7 @@ GLM53_LANE=1m   ./scripts/glm53-serve.sh
 | `500k` | 500,000 | 5 | Daily driver. Agent sessions that hold a repo |
 | `1m` | 1,000,000 | 3 | Long dumps. Not three simultaneous full 1M windows |
 
-These seq counts are **occupancy**, the way people actually use a box. They are not a promise that 15 full 200K windows fit in the 0.85 KV pool. They do not. Engine print at 0.85 is ~2.1–2.4M KV tokens: about 11× at 200K, 4.7× at 500K, **2.15× at 1M**. Mixed chats (4K, 4K, 80K) are what 15/5/3 are sized for. Dump every slot at max length and you get preemption and a crawl. That is the same trade we ran on GLM-5.2.
+These seq counts are **occupancy**, the way people actually use a box. They are not a promise that 15 full 200K windows fit in the 0.85 KV pool. They do not. Engine print at 0.85 is ~2.1–2.4M KV tokens: about 11× at 200K, 4.7× at 500K, **2.15× at 1M**. Mixed chats (4K, 4K, 80K) are what 15/5/3 are sized for. Dump every slot at max length and you get preemption and a crawl.
 
 If you stripped the desktop, `GLM53_GMU=0.885` is the squeeze. Leave 0.85 if the GUI is still there. Rank 0 also holds the API process.
 
@@ -73,8 +73,8 @@ Full tables: [docs/BENCH.md](docs/BENCH.md). Harness: `scripts/bench_lanes.py`.
 2. **`--kv-cache-dtype fp8` is the wrong flag.** It selected `fp8_ds_mla`. We serve `fp8_e4m3`.
 3. **Official image ENTRYPOINT is already `vllm serve`.** Passing it again exits immediately. GID wrapper is `--entrypoint`.
 4. **CUDA graphs.** Tony's 5.3 writeup stays on `--enforce-eager`. Dropping it here hit `persistent_topk` wanting 128 KB SMEM. GB10 has 101 KB. Bind-mounts in `patches/` skip that kernel on SM12x. Graphs then captured (PIECEWISE 8/8, FULL 3/3). `--async-scheduling` stays on.
-5. **FP8, not NVFP4.** NVFP4 on GB10 is Marlin dequant, usually slower decode. Same lesson as GLM-5.2.
-6. **No DCP.** 5.2 needed it. This card does not. `decode_context_parallel_size=1`.
+5. **FP8, not NVFP4.** NVFP4 on GB10 is Marlin dequant, usually slower decode.
+6. **No DCP.** This card does not need it. `decode_context_parallel_size=1`.
 7. **MTP k=3** (k=4 A/B'd 2026-08-28: 4th draft acceptance ~0.5 → net slower), batched
    8192, `--block-size 2304`. Next-up: Inco's **DFlash2** drafter (SGLang-only today).
 

@@ -2,15 +2,13 @@
 
 This is the 4× Spark FP8 recipe. Tony's 2× Spark NVFP4 work is what made GB10 even possible. We took his SM121 image layers, kept native FP8 + DeepGEMM, and ran occupancy lanes on four boxes.
 
-## What we did not copy from GLM-5.2
+## The model
 
-5.2 on this cluster was QuantTrio int4-int8mix, DCP, B12X sparse MLA, `fp8_ds_mla` KV, a custom eldritch image. That stack is for a different checkpoint.
-
-5.3 Flash is `Glm5NextForConditionalGeneration`: 320B / 18B-active, hybrid KDA + sparse MLA, **NoPE** (`qk_rope_head_dim=0`). Native FP8. DCP is off (`decode_context_parallel_size=1`). We did not graft 5.2 kernels onto it.
+GLM-5.3 Flash is `Glm5NextForConditionalGeneration`: 320B / 18B-active, hybrid KDA + sparse MLA, **NoPE** (`qk_rope_head_dim=0`). Native FP8, `decode_context_parallel_size=1`. This recipe serves it as-is — no grafted kernels from other checkpoints.
 
 ## Weights: FP8, not NVFP4
 
-NVFP4 on GB10 is a Marlin dequant path, not native FP4 tensor cores. Smaller on disk, usually slower at decode. We already measured that on 5.2. `dealignai/GLM-5.3-Flash-UNCENSORED-FP8` is the card this recipe serves.
+NVFP4 on GB10 is a Marlin dequant path, not native FP4 tensor cores. Smaller on disk, usually slower at decode. `dealignai/GLM-5.3-Flash-UNCENSORED-FP8` is the card this recipe serves.
 
 ## Stock image does not boot on GB10
 
@@ -26,9 +24,9 @@ After that image, attention is `FLASHINFER_MLA_SPARSE_SM90`. KV is `fp8_e4m3`. M
 
 If you pass `vllm serve` again you double the command and the container exits immediately. The GID wrapper is `--entrypoint`. Args start with `vllm serve /model ...`.
 
-## CUDA graphs: not the 5.2 miss
+## CUDA graphs: the fix
 
-Tony's 5.3 recipe stays on `--enforce-eager` and lists graphs as backlog. 5.2 graphs on this cluster were a `max_cudagraph_capture_size` / profiler-estimate problem.
+Tony's 5.3 recipe stays on `--enforce-eager` and lists graphs as backlog.
 
 Dropping `--enforce-eager` here died later, at KV profile:
 
@@ -59,7 +57,7 @@ At `gmu=0.85` the engine prints ~2.1–2.4M KV tokens. Full-window math:
 | 500k | 5 × 500K | ~4.7× at 500K |
 | 1m | 3 × 1M | **2.15× at 1M** |
 
-We still ship `seqs=15/5/3` because real traffic is mixed occupancy. GLM-5.2 ran 5 @ 200K the same way: five full parallel 200K jobs would have preempted. They almost never arrived that way.
+We still ship `seqs=15/5/3` because real traffic is mixed occupancy: five full parallel 200K jobs would preempt; they almost never arrive that way.
 
 `max-model-len` for the 1M lane is **1,000,000**, not 1,048,576. Native max is 1,048,576; at 0.85 that print is 2.87×, so "3 @ 1M" would be a lie.
 
