@@ -1,9 +1,9 @@
-# Bench notes (2026-08-27)
+# Bench notes (2026-08-27, updated 2026-08-31)
 
 **Hardware:** 4× DGX Spark, GB10 SM121, TP=4, RoCE fabric  
-**Weights:** `dealignai/GLM-5.3-Flash-UNCENSORED-FP8`  
+**Weights:** `dealignai/GLM-5.3-Flash-UNCENSORED-FP8` (2026-08-29 fixed revision)  
 **Image:** SM121 v8 + `persistent_topk` bind-mounts  
-**Serve:** MTP k=3, `fp8_e4m3` KV, async scheduling, CUDA graphs on, `gmu=0.85`
+**Serve:** MTP k=4 (since 08-31; k=3 before), `fp8_e4m3` KV, async scheduling, CUDA graphs on, `gmu=0.85`
 
 Method: streaming `/v1/chat/completions`. TTFT = time to first **content** token. Decode tok/s = completion_tokens / (E2E − TTFT). Large prompts are uniquely salted so prefix cache cannot cheat. Conc 1–5 on each lane. We did not run 15-wide.
 
@@ -11,12 +11,12 @@ Harness: `scripts/bench_lanes.py`.
 
 ## Headline (safe to quote)
 
-Single-stream, thinking off. Lane does **not** change short-chat speed.
+Single-stream, thinking off, **MTP k=4 on fixed weights**. Lane does **not** change short-chat speed.
 
 | Workload | Prefill | Decode | TTFT | E2E |
 |---|---|---|---|---|
-| Tiny ping (~20 tok) | — | 28–34 tok/s | 0.31–0.33 s | ~1.3 s |
-| ~50k unique prompt | ~2,100 tok/s | ~43 tok/s | ~25 s | ~25 s |
+| Tiny ping (~20 tok) | — | 35–40 tok/s | 0.27–0.33 s | ~0.9–1.3 s |
+| ~50k unique prompt | ~2,100 tok/s | ~40–43 tok/s | ~25 s | ~25 s |
 | 1280×640 PNG (1085 vision tok) | encoder + 150–700 tok/s | 32–39 tok/s | ~1.5 s warm / ~7 s cold encoder | ~6–11 s |
 
 Five-wide ~50k unique prefills: per-stream decode ~8–10 tok/s, TTFT ~75 s.
@@ -159,3 +159,48 @@ Conc 4–5 queues behind `max-num-seqs=3`.
 - 3 full 1M windows concurrent. Engine print is 2.15×. `seqs=3` is occupancy.
 - Thinking-on decode tok/s as model speed.
 - Prefix-cached large-prefill rates (first 500k large pass hit cache; discarded).
+
+## MTP k=4 on fixed weights (2026-08-31)
+
+The 2026-08-28 A/B rejected k=4 (4th draft position ~0.49 → net slower). That run used
+the **original 08-26 weights**, which shipped with a repetition-loop bug patched upstream
+on 08-29 (33 of 62 shards rewritten). Re-tested k=4 on the fixed revision after 12h of
+production traffic (60 metric windows, mixed concurrent chat + agent load):
+
+| Metric (session aggregate) | Value |
+|---|---|
+| Mean accepted length | 2.87 / 5 (57% of max) |
+| Per-position acceptance | p1 0.72 · p2 0.51 · p3 0.38 · p4 0.25 |
+| Best warm window | 4.49 / 5 |
+| Trajectory (early → late third) | 2.93 → 2.92 (flat = settled) |
+
+**k=3 vs k=4 on the same weights** — k=3 simulated from this model's own p1–p3 chain:
+
+| | accepts/step | draft forwards/step | efficiency |
+|---|---|---|---|
+| k=3 (sim) | 2.24 | 4 | 0.559 |
+| **k=4 (measured)** | **2.87** | 5 | **0.573 (+2%)** |
+
+Interpretation, corrected from the 08-28 note:
+
+- The old p4≈0.49 was a **repetition artifact** (repeat streaks match drafts trivially;
+  loop corrections diverge). Fixed weights decay cleanly: 0.72 → 0.51 → 0.38 → 0.25.
+- p4 = 0.25 adds ~0.63 accepted tokens per step for one nearly-free MTP forward
+  (the draft head is an extra pass on the same layer, not a second model).
+- Net: k=4 ≥ k=3 on clean weights. **Default flipped to k=4** in `glm53-node-launch.sh`.
+- Override back with `GLM53_MTP_K=3` (one env var; margin is workload-dependent —
+  short single-stream chats favor the smaller acceptance window, long reasoning streams
+  cash the deeper draft).
+
+Speed re-check on k=4, fixed weights, 500k lane (harness numbers, conc 1–3):
+
+| Scenario | c=1 decode | c=1 TTFT | c=1 E2E | c=3 decode |
+|---|---|---|---|---|
+| Tiny ping | 37.2 tok/s | 0.27 s | 0.95 s | 15.6 tok/s |
+| Reasoning (thinking on) | — quote E2E — | 3.4 s | 5.4 s | — |
+| ~52k unique | 39.6 tok/s (prefill 2,144 tok/s) | 24.5 s | 25.2 s | 13.8 tok/s |
+
+Single-stream small-chat decode moved from 28–34 to **~37 tok/s**, consistent with the
++2% efficiency and a warm graph cache; treat the delta as within run-to-run noise until
+a second full battery repeats it. Lane tables above (08-27, k=3) are unchanged and still
+valid for lane sizing.

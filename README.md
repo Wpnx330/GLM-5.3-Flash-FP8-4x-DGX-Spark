@@ -1,8 +1,8 @@
-# GLM-5.3-Flash-uncensored FP8 | 4× DGX Spark | 34 tok/s @ 1m cxt
+# GLM-5.3-Flash-uncensored FP8 | 4× DGX Spark | 37 tok/s @ 1m ctx
 
-Native FP8, uncensored, multimodal, tensor-parallel 4, 1m context at 28-34 tok/s.
+Native FP8, uncensored, multimodal, tensor-parallel 4, 1M context at 35–40 tok/s (MTP k=4).
 
-Single-stream decode **28–34 tok/s** on a tiny prompt and **~43 tok/s** after a ~50k-token prefill. Prefill on that 50k prompt is **~2,100 tok/s**. Short-chat speed does not change when you pick the 200k, 500k, or 1M lane. Image and video towers load and answer.
+Single-stream decode **~35–40 tok/s** on a tiny prompt and **~43 tok/s** after a ~50k-token prefill. Prefill on that 50k prompt is **~2,100 tok/s**. Short-chat speed does not change when you pick the 200k, 500k, or 1M lane. Image and video towers load and answer.
 
 Stock `vllm/vllm-openai:glm53-flash-arm64-cu130` does not boot this model on GB10. This repo is the recipe that does: SM121 image layers, occupancy lanes, CUDA graphs.
 
@@ -12,14 +12,14 @@ Stock `vllm/vllm-openai:glm53-flash-arm64-cu130` does not boot this model on GB1
 
 Weights are not in this repo. Pull [dealignai/GLM-5.3-Flash-UNCENSORED-FP8](https://huggingface.co/dealignai/GLM-5.3-Flash-UNCENSORED-FP8) yourself (~306 GiB, 62 shards).
 
-## Headline numbers (2026-08-27, 4× GB10, `gmu=0.85`)
+## Headline numbers (2026-08-27 battery; small-chat decode re-measured 08-31 on k=4, 4× GB10, `gmu=0.85`)
 
 | | Tiny ping (~20 tok) | ~50k unique prompt | 1280×640 PNG |
 |---|---|---|---|
-| Decode | 28–34 tok/s | ~43 tok/s | 32–39 tok/s |
+| Decode | 35–40 tok/s | ~43 tok/s | 32–39 tok/s |
 | Prefill | — | ~2,100 tok/s | encoder + 150–700 tok/s |
-| TTFT | 0.31–0.33 s | ~25 s | ~1.5 s warm / ~7 s cold encoder |
-| E2E | ~1.3 s | ~25 s | ~6–11 s |
+| TTFT | 0.27–0.33 s | ~25 s | ~1.5 s warm / ~7 s cold encoder |
+| E2E | ~0.9–1.3 s | ~25 s | ~6–11 s |
 
 Five concurrent ~50k unique prefills: per-stream decode drops to ~8–10 tok/s, TTFT ~75 s. That is HBM sharing, not the 1M flag.
 
@@ -75,9 +75,10 @@ Full tables: [docs/BENCH.md](docs/BENCH.md). Harness: `scripts/bench_lanes.py`.
 4. **CUDA graphs.** Tony's 5.3 writeup stays on `--enforce-eager`. Dropping it here hit `persistent_topk` wanting 128 KB SMEM. GB10 has 101 KB. Bind-mounts in `patches/` skip that kernel on SM12x. Graphs then captured (PIECEWISE 8/8, FULL 3/3). `--async-scheduling` stays on.
 5. **FP8, not NVFP4.** NVFP4 on GB10 is Marlin dequant, usually slower decode.
 6. **No DCP.** This card does not need it. `decode_context_parallel_size=1`.
-7. **MTP k=3** (k=4 A/B'd 2026-08-28: 4th draft acceptance ~0.5 → net slower), batched
-   8192, `--block-size 2304`. Draft length is a knob: `GLM53_MTP_K=4 ./scripts/glm53-serve.sh`.
-   That A/B ran on an older weights revision; re-testing k=4 on newer cards is fair game.
+7. **MTP k=4** default (08-31 retest on the 08-29 fixed weights: mean-accepted 2.87/5,
+   k=4 ≥ k=3 by +2% per-forward efficiency; the 08-28 k=4 rejection ran on the buggy
+   original revision). Tune with `GLM53_MTP_K=3` — see [docs/BENCH.md](docs/BENCH.md)
+   for the corrected A/B. Batched 8192, `--block-size 2304`.
    Next-up: Inco's **DFlash2** drafter (SGLang-only today).
 
 Longer version: [docs/DESIGN.md](docs/DESIGN.md).

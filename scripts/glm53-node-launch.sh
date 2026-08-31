@@ -32,9 +32,11 @@ MAX_NUM_SEQS="${GLM53_SEQS:-$_SEQS}"
 MAX_BATCHED="${GLM53_BATCHED:-8192}"
 GMU="${GLM53_GMU:-0.85}"
 SERVED_NAME="${GLM53_SERVED_NAME:-glm-5.3-flash}"
-# MTP draft length. 3 is the measured default on 4x GB10; k=4 worth re-testing
-# on fixed-weights builds (older A/B ran on a revision later patched upstream).
-MTP_K="${GLM53_MTP_K:-3}"
+# MTP draft length. 4 is the default on fixed weights (08-31 retest on the
+# 08-29 upstream revision: mean-accepted 2.87/5, k=4 >= k=3 by +2% efficiency;
+# the 08-28 k=4 rejection ran on the buggy original weights). k=3 remains one
+# env var away and is the better fit for short single-stream chat bursts.
+MTP_K="${GLM53_MTP_K:-4}"
 if ! [ "$MTP_K" -ge 1 ] 2>/dev/null; then
   printf 'GLM53_MTP_K must be an integer >= 1 (got %s)\n' "$MTP_K" >&2
   exit 2
