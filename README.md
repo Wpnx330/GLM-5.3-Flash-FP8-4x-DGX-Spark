@@ -2,6 +2,8 @@
 
 Native FP8, uncensored, multimodal, tensor-parallel 4, 1M context at 35–40 tok/s (MTP k=4).
 
+<img width="2538" height="1264" alt="image" src="https://github.com/user-attachments/assets/de7b73aa-1711-4bac-8255-91465d71e709" />
+
 Single-stream decode **~35–40 tok/s** on a tiny prompt and **~43 tok/s** after a ~50k-token prefill. Prefill on that 50k prompt is **~2,100 tok/s**. Short-chat speed does not change when you pick the 200k, 500k, or 1M lane. Image and video towers load and answer.
 
 Stock `vllm/vllm-openai:glm53-flash-arm64-cu130` does not boot this model on GB10. This repo is the recipe that does: SM121 image layers, occupancy lanes, CUDA graphs.
